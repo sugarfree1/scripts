@@ -1,31 +1,28 @@
-require 'rest-client'
 require 'date'
-require 'json'
 
-url = ARGV[0]
+require './connector'
+require './processor'
 
 today = Date.today
 
-(0..6).to_a.reverse.each do |offset|
+connector = Connector.new(ARGV[0])
+
+(0..7).to_a.reverse.each do |offset|
   watchup_date = today + offset
 
-  data = RestClient.get "#{url}?date=#{watchup_date}", {accept: :json}
+  result = Processor.process(connector.get_shipments(watchup_date))
 
-  shipping_rates = JSON.load(data)['shipping_rates']
+  if result[:success]
+    interval = result[:interval]
 
-  if shipping_rates == []
-    puts "#{watchup_date} — not ready"
+    puts "#{watchup_date} — found free interval #{interval['delivery_window']['starts_at']} - #{interval['delivery_window']['ends_at']}"
   else
-    free_intervals = shipping_rates.select { |rate| rate['is_free'] }
-
-    if free_intervals == []
+    if result[:code] == :not_ready
+      puts "#{watchup_date} — not ready"
+    elsif result[:code] == :no_intervals
       puts "#{watchup_date} — no intervals"
-    else
-      puts "#{watchup_date} — found free interval"
     end
   end
-
-  puts "\n"
 
   sleep(2)
 end
